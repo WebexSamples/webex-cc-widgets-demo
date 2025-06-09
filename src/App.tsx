@@ -1,25 +1,239 @@
-import React from 'react';
-import logo from './logo.svg';
+import {useState, useEffect} from 'react';
 import './App.css';
+import { StationLogin, UserState, IncomingTask, TaskList, CallControl } from '@webex/cc-widgets';
+import { store } from '@webex/cc-widgets';
+import { IconProvider, ThemeProvider } from '@momentum-design/components/dist/react';
+
+interface Task {
+  data: {
+    interactionId: string;
+    interaction: {
+      mediaType: string;
+      createdTimestamp?: string;
+      callAssociatedDetails?: {
+        ani?: string;
+        virtualTeamName?: string;
+        ronaTimeout?: string;
+      };
+    };
+    wrapUpRequired?: boolean;
+  };
+}
+
+interface TaskCallback {
+  task: Task;
+}
 
 function App() {
+  const [accessToken, setAccessToken] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
+  const [incomingTasks, setIncomingTasks] = useState<Task[]>([]);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [showCallControl, setShowCallControl] = useState(false);
+  const isBrowser = typeof window !== 'undefined';
+
+  const playNotificationSound = () => {
+    const ctx = new AudioContext();
+    const osc = ctx.createOscillator();
+    const gain = ctx.createGain();
+
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(1200, ctx.currentTime);
+
+    osc.connect(gain);
+    gain.connect(ctx.destination);
+
+    gain.gain.setValueAtTime(0.5, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.3);
+
+    osc.start();
+    osc.stop(ctx.currentTime + 0.3);
+  };
+
+  useEffect(() => {
+    // Set up incoming task callback
+    store.setIncomingTaskCb(({ task }: TaskCallback) => {
+      console.log('Incoming task:', task);
+      setIncomingTasks(prevTasks => [...prevTasks, task]);
+      playNotificationSound();
+    });
+
+    return () => {
+      store.setIncomingTaskCb(undefined);
+    };
+  }, []);
+
+  const handleInitialize = () => {
+    const webexConfig = {
+      fedramp: false,
+      logger: {
+        level: 'log',
+      },
+      cc: {
+        allowMultiLogin: true,
+      },
+    };
+    store.init({ webexConfig, access_token: accessToken }).then(() => {
+      setIsInitialized(true);
+    });
+  };
+
+  const onLogin = () => {
+    setIsLoggedIn(true);
+    console.log('Agent login successful');
+  };
+
+  const onLogout = () => {
+    setIsLoggedIn(false);
+    console.log('Agent logout successful');
+  };
+
+  const onCCSignOut = () => {
+    setIsLoggedIn(false);
+    setShowCallControl(false);
+    setIncomingTasks([]);
+    console.log('CC Sign out successful');
+  };
+
+  const onTaskAccepted = (task: Task) => {
+    console.log('Task accepted:', task);
+    setIncomingTasks(prevTasks => 
+      prevTasks.filter(t => t.data.interactionId !== task.data.interactionId)
+    );
+  };
+
+  const onTaskRejected = (task: Task) => {
+    console.log('Task rejected:', task);
+    setIncomingTasks(prevTasks => 
+      prevTasks.filter(t => t.data.interactionId !== task.data.interactionId)
+    );
+  };
+
+  const onStateChange = (status: any) => {
+    console.log('Agent state changed:', status);
+  };
+
+  const onHoldResume = () => {
+    console.log('Call hold/resume toggled');
+  };
+
+  const onEnd = () => {
+    console.log('Call ended');
+  };
+
+  const onWrapUp = (params: any) => {
+    console.log('Call wrap up:', params);
+  };
+
   return (
-    <div className="App">
-      <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.tsx</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
-      </header>
-    </div>
+    <ThemeProvider  themeclass={'mds-theme-stable-lightWebex'}>
+      <IconProvider iconSet="momentum-icons">
+      <div className="App">
+        {isInitialized && (
+          <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+            <UserState onStateChange={onStateChange} />
+          </div>
+        )}
+        
+        <header className="App-header">
+          {!isInitialized ? (
+            <div 
+              className="initialization-form"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                gap: '20px',
+                padding: '30px',
+                backgroundColor: '#f5f5f5',
+                borderRadius: '10px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)'
+              }}
+            >
+              <h2 style={{ margin: '0 0 20px 0', color: '#333' }}>Initialize Widgets</h2>
+              <input
+                type="text"
+                value={accessToken}
+                onChange={(e) => setAccessToken(e.target.value)}
+                placeholder="Enter access token"
+                style={{
+                  width: '300px',
+                  padding: '12px',
+                  borderRadius: '25px',
+                  border: '1px solid #ddd',
+                  outline: 'none',
+                  fontSize: '14px',
+                  transition: 'all 0.3s'
+                }}
+                onFocus={(e) => e.target.style.borderColor = '#0052cc'}
+                onBlur={(e) => e.target.style.borderColor = '#ddd'}
+              />
+              <button
+                onClick={handleInitialize}
+                disabled={!accessToken}
+                style={{
+                  padding: '12px 24px',
+                  borderRadius: '25px',
+                  border: 'none',
+                  backgroundColor: accessToken ? '#0052cc' : '#ccc',
+                  color: 'white',
+                  cursor: accessToken ? 'pointer' : 'not-allowed',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  transition: 'background-color 0.3s'
+                }}
+              >
+                Signin
+              </button>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <StationLogin 
+                onLogin={onLogin} 
+                onLogout={onLogout} 
+                onCCSignOut={onCCSignOut}
+              />
+              {isLoggedIn && (
+                <>
+                  <TaskList 
+                    onTaskAccepted={onTaskAccepted}
+                    onTaskDeclined={onTaskRejected}
+                  />
+                  {store.currentTask && (
+                    <CallControl 
+                      onHoldResume={onHoldResume}
+                      onEnd={onEnd}
+                      onWrapUp={onWrapUp}
+                    />
+                  )}
+                </>
+              )}
+            </div>
+          )}
+        </header>
+
+        {/* Incoming Task Container */}
+        {incomingTasks.map(task => (
+          <div
+            key={task.data.interactionId}
+            style={{ 
+              position: 'absolute', 
+              bottom: '20px', 
+              right: '20px',
+              zIndex: 1000
+            }}
+          >
+            <IncomingTask
+              incomingTask={task}
+              isBrowser={isBrowser}
+              onAccepted={() => onTaskAccepted(task)}
+              onRejected={() => onTaskRejected(task)}
+            />
+          </div>
+        ))}
+      </div>
+      </IconProvider>
+    </ThemeProvider>
   );
 }
 
