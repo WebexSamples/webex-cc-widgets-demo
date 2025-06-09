@@ -1,35 +1,15 @@
 import {useState, useEffect} from 'react';
 import './App.css';
-import { StationLogin, UserState, IncomingTask, TaskList, CallControl } from '@webex/cc-widgets';
-import { store } from '@webex/cc-widgets';
-import { IconProvider, ThemeProvider } from '@momentum-design/components/dist/react';
+import { StationLogin, UserState, IncomingTask, TaskList, CallControl, store } from '@webex/cc-widgets';
+import { IconProvider, ThemeProvider, Button } from '@momentum-design/components/dist/react';
+import {observer} from 'mobx-react-lite';
 
-interface Task {
-  data: {
-    interactionId: string;
-    interaction: {
-      mediaType: string;
-      createdTimestamp?: string;
-      callAssociatedDetails?: {
-        ani?: string;
-        virtualTeamName?: string;
-        ronaTimeout?: string;
-      };
-    };
-    wrapUpRequired?: boolean;
-  };
-}
-
-interface TaskCallback {
-  task: Task;
-}
 
 function App() {
   const [accessToken, setAccessToken] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
-  const [incomingTasks, setIncomingTasks] = useState<Task[]>([]);
+  const [incomingTasks, setIncomingTasks] = useState<any[]>([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [showCallControl, setShowCallControl] = useState(false);
   const isBrowser = typeof window !== 'undefined';
 
   const playNotificationSound = () => {
@@ -52,7 +32,7 @@ function App() {
 
   useEffect(() => {
     // Set up incoming task callback
-    store.setIncomingTaskCb(({ task }: TaskCallback) => {
+    store.setIncomingTaskCb(({ task }: any) => {
       console.log('Incoming task:', task);
       setIncomingTasks(prevTasks => [...prevTasks, task]);
       playNotificationSound();
@@ -67,7 +47,7 @@ function App() {
     const webexConfig = {
       fedramp: false,
       logger: {
-        level: 'log',
+        level: 'info',
       },
       cc: {
         allowMultiLogin: true,
@@ -90,27 +70,44 @@ function App() {
 
   const onCCSignOut = () => {
     setIsLoggedIn(false);
-    setShowCallControl(false);
     setIncomingTasks([]);
     console.log('CC Sign out successful');
   };
 
-  const onTaskAccepted = (task: Task) => {
-    console.log('Task accepted:', task);
-    setIncomingTasks(prevTasks => 
-      prevTasks.filter(t => t.data.interactionId !== task.data.interactionId)
-    );
-  };
-
-  const onTaskRejected = (task: Task) => {
-    console.log('Task rejected:', task);
-    setIncomingTasks(prevTasks => 
-      prevTasks.filter(t => t.data.interactionId !== task.data.interactionId)
-    );
+   const stationLogout = () => {
+    store.cc.stationLogout({logoutReason: 'User requested logout'})
+      .then((res: { data: { type: string } }) => {
+        console.log('Agent logged out successfully', res.data.type);
+      })
+      .catch((error: Error) => {
+        console.log('Agent logout failed', error);
+      });
   };
 
   const onStateChange = (status: any) => {
     console.log('Agent state changed:', status);
+  };
+
+  const onAccepted = (task: { data: { interactionId: string; }}) => {
+    setIncomingTasks((prevTasks) => prevTasks.filter((t) => t.data.interactionId !== task.data.interactionId));
+    console.log('onAccepted Invoked');
+  };
+
+  const onRejected = (task: { data: { interactionId: string; }}) => {
+    setIncomingTasks((prevTasks) => prevTasks.filter((t) => t.data.interactionId !== task.data.interactionId));
+    console.log('onRejected invoked');
+  };
+
+  const onTaskAccepted = (task: any) => {
+    console.log('onTaskAccepted invoked for task:', task);
+  };
+
+  const onTaskDeclined = (task: any) => {
+    console.log('onTaskDeclined invoked for task:', task);
+  };
+
+  const onTaskSelected = (task: any) => {
+    console.log('onTaskSelected invoked for task:', task);
   };
 
   const onHoldResume = () => {
@@ -126,16 +123,26 @@ function App() {
   };
 
   return (
-    <ThemeProvider  themeclass={'mds-theme-stable-lightWebex'}>
+    <ThemeProvider themeclass="mds-theme-stable-lightWebex">
       <IconProvider iconSet="momentum-icons">
-      <div className="App">
-        {isInitialized && (
-          <div style={{ position: 'absolute', top: '20px', right: '20px' }}>
+        <div className="App mds-typography">
+
+        {isInitialized && isLoggedIn && (
+          <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '10px', alignItems: 'center' }}>
             <UserState onStateChange={onStateChange} />
+            <Button
+              onClick={stationLogout}
+              style={{
+                backgroundColor: '#dc3545',
+                color: 'white'
+              }}
+            >
+              Logout
+            </Button>
           </div>
         )}
         
-        <header className="App-header">
+        <div className="cc-widget-app">
           {!isInitialized ? (
             <div 
               className="initialization-form"
@@ -187,7 +194,7 @@ function App() {
               </button>
             </div>
           ) : (
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            <div>
               <StationLogin 
                 onLogin={onLogin} 
                 onLogout={onLogout} 
@@ -197,20 +204,19 @@ function App() {
                 <>
                   <TaskList 
                     onTaskAccepted={onTaskAccepted}
-                    onTaskDeclined={onTaskRejected}
+                    onTaskDeclined={onTaskDeclined}
+                    onTaskSelected={onTaskSelected}
                   />
                   {store.currentTask && (
-                    <CallControl 
-                      onHoldResume={onHoldResume}
-                      onEnd={onEnd}
-                      onWrapUp={onWrapUp}
-                    />
+                    <div>
+                      <CallControl onHoldResume={onHoldResume} onEnd={onEnd} onWrapUp={onWrapUp} />
+                    </div>
                   )}
                 </>
               )}
             </div>
           )}
-        </header>
+        </div>
 
         {/* Incoming Task Container */}
         {incomingTasks.map(task => (
@@ -226,15 +232,16 @@ function App() {
             <IncomingTask
               incomingTask={task}
               isBrowser={isBrowser}
-              onAccepted={() => onTaskAccepted(task)}
-              onRejected={() => onTaskRejected(task)}
+              onAccepted={() => onAccepted(task)}
+              onRejected={() => onRejected(task)}
             />
           </div>
         ))}
-      </div>
+
+        </div>
       </IconProvider>
     </ThemeProvider>
   );
 }
 
-export default App;
+export default observer(App);
