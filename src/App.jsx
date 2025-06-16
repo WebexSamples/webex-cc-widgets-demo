@@ -124,7 +124,7 @@ function App() {
 
   return (
     <ThemeProvider themeclass="mds-theme-stable-lightWebex">
-      <IconProvider>
+      <IconProvider iconSet="momentum-icons">
         <div className="App mds-typography">
 
         {isInitialized && isLoggedIn && (
