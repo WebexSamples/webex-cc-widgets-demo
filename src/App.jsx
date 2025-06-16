@@ -1,14 +1,13 @@
-import {useState, useEffect} from 'react';
+import React, {useState, useEffect} from 'react';
 import './App.css';
-import { StationLogin, UserState, IncomingTask, TaskList, CallControl, store } from '@webex/cc-widgets';
+import { StationLogin, UserState, IncomingTask, TaskList, CallControlCAD, store } from '@webex/cc-widgets';
 import { IconProvider, ThemeProvider, Button } from '@momentum-design/components/dist/react';
 import {observer} from 'mobx-react-lite';
-
 
 function App() {
   const [accessToken, setAccessToken] = useState('');
   const [isInitialized, setIsInitialized] = useState(false);
-  const [incomingTasks, setIncomingTasks] = useState<any[]>([]);
+  const [incomingTasks, setIncomingTasks] = useState([]);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const isBrowser = typeof window !== 'undefined';
 
@@ -32,7 +31,7 @@ function App() {
 
   useEffect(() => {
     // Set up incoming task callback
-    store.setIncomingTaskCb(({ task }: any) => {
+    store.setIncomingTaskCb(({ task }) => {
       console.log('Incoming task:', task);
       setIncomingTasks(prevTasks => [...prevTasks, task]);
       playNotificationSound();
@@ -55,6 +54,7 @@ function App() {
     };
     store.init({ webexConfig, access_token: accessToken }).then(() => {
       setIsInitialized(true);
+      window.store = store;
     });
   };
 
@@ -76,37 +76,37 @@ function App() {
 
    const stationLogout = () => {
     store.cc.stationLogout({logoutReason: 'User requested logout'})
-      .then((res: { data: { type: string } }) => {
+      .then((res) => {
         console.log('Agent logged out successfully', res.data.type);
       })
-      .catch((error: Error) => {
+      .catch((error) => {
         console.log('Agent logout failed', error);
       });
   };
 
-  const onStateChange = (status: any) => {
+  const onStateChange = (status) => {
     console.log('Agent state changed:', status);
   };
 
-  const onAccepted = (task: { data: { interactionId: string; }}) => {
+  const onAccepted = (task) => {
     setIncomingTasks((prevTasks) => prevTasks.filter((t) => t.data.interactionId !== task.data.interactionId));
     console.log('onAccepted Invoked');
   };
 
-  const onRejected = (task: { data: { interactionId: string; }}) => {
+  const onRejected = (task) => {
     setIncomingTasks((prevTasks) => prevTasks.filter((t) => t.data.interactionId !== task.data.interactionId));
     console.log('onRejected invoked');
   };
 
-  const onTaskAccepted = (task: any) => {
+  const onTaskAccepted = (task) => {
     console.log('onTaskAccepted invoked for task:', task);
   };
 
-  const onTaskDeclined = (task: any) => {
+  const onTaskDeclined = (task) => {
     console.log('onTaskDeclined invoked for task:', task);
   };
 
-  const onTaskSelected = (task: any) => {
+  const onTaskSelected = (task) => {
     console.log('onTaskSelected invoked for task:', task);
   };
 
@@ -118,13 +118,13 @@ function App() {
     console.log('Call ended');
   };
 
-  const onWrapUp = (params: any) => {
+  const onWrapUp = (params) => {
     console.log('Call wrap up:', params);
   };
 
   return (
     <ThemeProvider themeclass="mds-theme-stable-lightWebex">
-      <IconProvider iconSet="momentum-icons">
+      <IconProvider>
         <div className="App mds-typography">
 
         {isInitialized && isLoggedIn && (
@@ -209,7 +209,7 @@ function App() {
                   />
                   {store.currentTask && (
                     <div>
-                      <CallControl onHoldResume={onHoldResume} onEnd={onEnd} onWrapUp={onWrapUp} />
+                      <CallControlCAD onHoldResume={onHoldResume} onEnd={onEnd} onWrapUp={onWrapUp} />
                     </div>
                   )}
                 </>
