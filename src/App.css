@@ -1,0 +1,27 @@
+.App {
+  height: 100vh;
+}
+
+.cc-widget-app {
+  padding: 1rem;
+  height: 100%;
+  color: var(--mds-color-theme-button-primary-normal);
+  background-color: var(--mds-color-theme-inverted-text-primary-normal);
+}
+
+iframe {
+  display: none;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
